@@ -7,12 +7,12 @@
 git clone https://github.com/haturatu/lume-watcher
 ```
 
-2. Move the mongod script to /etc/init.d/mongod.
+2. Move the lume-watcher script to /etc/init.d/lume-watcher.
 ```
 sudo mv lume-watcher /etc/init.d/lume-watcher
 ```
 
-3. Optionally, change the permissions of the mongod script.
+3. Optionally, change the permissions of the lume-watcher script.
 ```
 sudo chmod +x /etc/init.d/lume-watcher
 ```
