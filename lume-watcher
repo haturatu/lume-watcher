@@ -9,13 +9,12 @@
 # Description:       Watches the specified directory and triggers the Deno Lume task when changes are detected.
 ### END INIT INFO
 
-WATCHED_DIR="/var/www/html/soulmining/src"
-OUTPUT_DIR="/var/www/html/soulmining"
-COMMAND="cd $OUTPUT_DIR ; /home/haturatu/.deno/bin/deno task lume --dest=site"
-FLAG_FILE="/tmp/command_running.flag"
-COOLDOWN_TIME=60  # クールダウン時間（秒）
+WATCHED_DIR="/var/www/html/soulmining/src/"
+COMMAND="/home/haturatu/.deno/bin/deno task lume --dest=site"
+COOLDOWN_TIME=60
 LAST_RUN_FILE="/tmp/last_run.time"
-PIDFILE="/var/run/lume-watcher.pid"
+LOG_FILE="/var/log/lume-watcher.log"
+PID_FILE="/var/run/lume-watcher.pid"
 
 # 現在の時間を取得
 current_time() {
@@ -32,61 +31,60 @@ get_last_run_time() {
 }
 
 # 最後にコマンドを実行した時間を記録する
+get_last_run_time() {
+    if [ -f "$LAST_RUN_FILE" ]; then
+        cat "$LAST_RUN_FILE"
+    else
+        echo 0
+    fi
+}
+
 set_last_run_time() {
     current_time > "$LAST_RUN_FILE"
 }
 
 # デーモンの開始
+monitor_directory() {
+    inotifywait -m -r -e modify,create,delete "$WATCHED_DIR" | while read -r directory events filename; do
+        echo "$(date): Change detected" >> "$LOG_FILE"
+        last_run_time=$(get_last_run_time)
+        now=$(current_time)
+
+        if [ $((now - last_run_time)) -ge $COOLDOWN_TIME ]; then
+            echo "$(date): Executing command" >> "$LOG_FILE"
+            cd /var/www/html/soulmining || exit
+            $COMMAND >> "$LOG_FILE" 2>&1
+            cd ~ || exit
+            set_last_run_time
+        else
+            echo "$(date): Command not executed due to cooldown" >> "$LOG_FILE"
+        fi
+    done
+}
+
 start() {
     echo "Starting lume-watcher..."
-    if [ -f "$PIDFILE" ]; then
-        echo "lume-watcher is already running."
-        exit 1
-    fi
-
-    # 実際の監視プロセスをバックグラウンドで実行
-    (
-        while true; do
-            if [ ! -f "$FLAG_FILE" ]; then
-                inotifywait -e modify,create,delete -r "$WATCHED_DIR"
-                last_run_time=$(get_last_run_time)
-                now=$(current_time)
-                elapsed_time=$((now - last_run_time))
-
-                if [ "$elapsed_time" -ge "$COOLDOWN_TIME" ]; then
-                    sleep $COOLDOWN_TIME
-                    echo "Change detected, executing command..."
-                    touch "$FLAG_FILE"
-                    $COMMAND
-                    rm -f "$FLAG_FILE"
-                    set_last_run_time
-                fi
-            fi
-            sleep 1
-        done
-    ) &
-    echo $! > "$PIDFILE"
-    echo "lume-watcher started."
+    monitor_directory &
+    echo $! > "$PID_FILE"
+    echo "Service started."
 }
 
-# デーモンの停止
 stop() {
     echo "Stopping lume-watcher..."
-    if [ ! -f "$PIDFILE" ]; then
-        echo "lume-watcher is not running."
-        exit 1
+    if [ -f "$PID_FILE" ]; then
+        kill $(cat "$PID_FILE")
+        rm -f "$PID_FILE"
+        echo "Service stopped."
+    else
+        echo "Service not running."
     fi
-
-    kill "$(cat $PIDFILE)" && rm -f "$PIDFILE"
-    echo "lume-watcher stopped."
 }
 
-# デーモンのステータス確認
 status() {
-    if [ -f "$PIDFILE" ]; then
-        echo "lume-watcher is running, PID: $(cat $PIDFILE)"
+    if [ -f "$PID_FILE" ]; then
+        echo "Service is running."
     else
-        echo "lume-watcher is not running."
+        echo "Service is stopped."
     fi
 }
 
@@ -97,15 +95,15 @@ case "$1" in
     stop)
         stop
         ;;
+    status)
+        status
+        ;;
     restart)
         stop
         start
         ;;
-    status)
-        status
-        ;;
     *)
-        echo "Usage: $0 {start|stop|restart|status}"
+        echo "Usage: /etc/init.d/lume-watcher {start|stop|status|restart}"
         exit 1
         ;;
 esac
