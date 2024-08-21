@@ -9,8 +9,9 @@
 # Description:       Watches the specified directory and triggers the Deno Lume task when changes are detected.
 ### END INIT INFO
 
-WATCHED_DIR="/var/www/html/soulmining/src/"
-COMMAND="/home/haturatu/.deno/bin/deno task lume --dest=site"
+WATCHED_DIR="/var/www/html/soulmining/src"
+OUTPUT_DIR="/var/www/html/soulmining"
+COMMAND="cd $OUTPUT_DIR ; /home/haturatu/.deno/bin/deno task lume --dest=site"
 FLAG_FILE="/tmp/command_running.flag"
 COOLDOWN_TIME=60  # クールダウン時間（秒）
 LAST_RUN_FILE="/tmp/last_run.time"
@@ -53,6 +54,7 @@ start() {
                 elapsed_time=$((now - last_run_time))
 
                 if [ "$elapsed_time" -ge "$COOLDOWN_TIME" ]; then
+                    sleep $COOLDOWN_TIME
                     echo "Change detected, executing command..."
                     touch "$FLAG_FILE"
                     $COMMAND
