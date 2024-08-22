@@ -1,6 +1,10 @@
 # lume-watcher
 
 ## Usage
+Deps
+```
+sudo apt install inotify-tools
+```
 
 1. Clone this repository.
 ```
