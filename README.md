@@ -25,14 +25,14 @@ done!
 
 ## Start-Stop
 ```
-sudo /etc/init.d/lume-watcher start
+sudo service lume-watcher start
 ```
 ```
-sudo /etc/init.d/lume-watcher stop
+sudo service lume-watcher stop
 ```
 ```
-sudo /etc/init.d/lume-watcher restart
+sudo service lume-watcher restart
 ```
 ```
-sudo /etc/init.d/lume-watcher status
+sudo service lume-watcher status
 ```
