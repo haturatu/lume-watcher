@@ -16,6 +16,7 @@ COOLDOWN_TIME=60
 LAST_RUN_FILE="/tmp/last_run.time"
 LOG_FILE="/var/log/lume-watcher.log"
 PID_FILE="/var/run/lume-watcher.pid"
+MAX_LOG_SIZE="1M"  # 設定可能なログサイズ (例: 500K, 1M, 1G)
 
 # 現在の時間を取得
 current_time() {
@@ -28,34 +29,54 @@ get_last_run_time() {
         cat "$LAST_RUN_FILE"
     else
         echo 0
+        exit 99
     fi
 }
 
 # 最後にコマンドを実行した時間を記録する
-get_last_run_time() {
-    if [ -f "$LAST_RUN_FILE" ]; then
-        cat "$LAST_RUN_FILE"
-    else
-        echo 0
-    fi
-}
-
 set_last_run_time() {
     current_time > "$LAST_RUN_FILE"
+}
+
+# ログファイルのサイズをチェックし、削除
+check_and_rotate_log() {
+    if [ -f "$LOG_FILE" ]; then
+        # 現在のログサイズを取得
+        current_log_size=$(du -b "$LOG_FILE" | cut -f1)
+
+        # MAX_LOG_SIZEをバイト単位に変換
+        max_size_value=${MAX_LOG_SIZE%[KMG]}
+        max_size_unit=${MAX_LOG_SIZE: -1}
+
+        case $max_size_unit in
+            K) max_size_in_bytes=$((max_size_value * 1024));;
+            M) max_size_in_bytes=$((max_size_value * 1024 * 1024));;
+            G) max_size_in_bytes=$((max_size_value * 1024 * 1024 * 1024));;
+            *) max_size_in_bytes=$max_size_value;;
+        esac
+
+        # ログファイルのサイズがMAX_LOG_SIZEを超えているかチェック
+        if [ "$current_log_size" -ge "$max_size_in_bytes" ]; then
+            rm "$LOG_FILE"
+            touch "$LOG_FILE"
+        fi
+    fi
 }
 
 # 監視開始を行う
 monitor_directory() {
     inotifywait -m -r -e modify,create,delete "$WATCHED_DIR" | while read -r directory events filename; do
+
         echo "$(date): Change detected" >> "$LOG_FILE"
         last_run_time=$(get_last_run_time)
         now=$(current_time)
 
         if [ $((now - last_run_time)) -ge $COOLDOWN_TIME ]; then
+            check_and_rotate_log
+
             echo "$(date): Executing command" >> "$LOG_FILE"
             
-            sleep 10
-            cd /var/www/html/soulmining || exit
+            sleep 20
             cd $OUTPUT_ROOT_DIR || exit
             $COMMAND >> "$LOG_FILE" 2>&1
             cd ~ || exit
@@ -69,6 +90,7 @@ monitor_directory() {
 
 # デーモンの開始
 start() {
+    check_and_rotate_log
     echo "Starting lume-watcher..."
     monitor_directory &
     echo $! > "$PID_FILE"
