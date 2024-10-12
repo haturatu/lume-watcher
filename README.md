@@ -1,4 +1,6 @@
 # lume-watcher
+This is not stable, so we recommend using this :  
+[haturatu/lumebuild](https://github.com/haturatu/lumebuild)
 
 ## Usage
 Deps
